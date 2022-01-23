@@ -1,1 +1,223 @@
-<h1>Hello</h1>
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Midi RR</title>
+        <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+        <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+        <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+        <link rel="manifest" href="/site.webmanifest">
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@1.4.4/css/pico.min.css">
+        <style>
+            th, td { padding-left: 0; padding-right: 0; }
+            #version { text-align: right; }
+            #config { display: none; }
+            #log { display: none; }
+            #log-entries { height: 600px; overflow-y: scroll; } 
+            form h2 { margin-bottom: 0.25em; }
+        </style>
+    </head>
+    <body>
+        <main class="container">
+            <p id="version">v0.0.1 <a href="https://github.com/murkyfreddery/midirr/">Github</a></p>
+            <hgroup>
+                <h1>MIDI RR</h1>
+                <h2>Browser-based round-robin forwarder for MIDI devices.</h2>
+            </hgroup>
+            <article>
+                <h2>About</h2>
+                <p>MIDI RR is a browser-based round-robin forwarder for MIDI devices. It could be used to treat a group monophonic devices as a single polyphonic device.</p>
+                <p>Messages received on selected input channels will be forwarded in turn to one of the selected output channels on a round-robin basis.</p>
+                <p>For example, with two output channels selected, if notes C, C# then D are received, then the notes would be forwarded as follows:</p>
+                <ul>
+                    <li>C -> Cannel 1</li>
+                    <li>C# -> Channel 2</li>
+                    <li>D -> Channel 1</li>
+                </ul>
+                <p>MIDI devices connected to your computer will be automatically detected and displayed on the form above. Select which channels to use for input and output, then click 'Start'.</p>
+                <p>Note-off events are sent to all selected outputs. Events other than note-on and note-off are ignored.</p>
+                <p>All processing is done locally in the browser. There is no server component, so it should be possible to download and run off-line.</p>
+                <p>Not all browsers support the Web MIDI API. Compatibibility can be checked at <a href="https://caniuse.com/midi">https://caniuse.com/midi</a>. If in doubt, Google Chrome is a safe bet.</p>
+            </article>
+            <article>
+                <form id="config">
+                    <h2>Input Channels</h2>
+                    <div id="input-channels"></div>
+                    <h2>Output Channels</h2>
+                    <div id="output-channels"></div>
+                    <button type="submit">Start</button>
+                </form>
+            </article>
+            <article id="log">
+                <h2>Log</h2>
+                <ul id="log-entries"></ul>
+            </article>
+            <p>Copyright &copy; 2022 Murky Freddery</p>
+        </main>
+
+        <script src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/mustache@4.2.0/mustache.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/webmidi@3.0.10/dist/iife/webmidi.iife.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/luxon@2.3.0/build/global/luxon.min.js"></script>
+
+        <script id="device-template" type="x-tmpl-mustache">
+            <table>
+                <thead>
+                    <tr>
+                        <th scope="col" colspan="16">{{device.name}}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <th scope="col"><label for="{{target}}-{{index}}-1">1</label></th>
+                        <th scope="col"><label for="{{target}}-{{index}}-2">2</label></th>
+                        <th scope="col"><label for="{{target}}-{{index}}-3">3</label></th>
+                        <th scope="col"><label for="{{target}}-{{index}}-4">4</label></th>
+                        <th scope="col"><label for="{{target}}-{{index}}-5">5</label></th>
+                        <th scope="col"><label for="{{target}}-{{index}}-6">6</label></th>
+                        <th scope="col"><label for="{{target}}-{{index}}-7">7</label></th>
+                        <th scope="col"><label for="{{target}}-{{index}}-8">8</label></th>
+                        <th scope="col"><label for="{{target}}-{{index}}-9">9</label></th>
+                        <th scope="col"><label for="{{target}}-{{index}}-10">10</label></th>
+                        <th scope="col"><label for="{{target}}-{{index}}-11">11</label></th>
+                        <th scope="col"><label for="{{target}}-{{index}}-12">12</label></th>
+                        <th scope="col"><label for="{{target}}-{{index}}-13">13</label></th>
+                        <th scope="col"><label for="{{target}}-{{index}}-14">14</label></th>
+                        <th scope="col"><label for="{{target}}-{{index}}-15">15</label></th>
+                        <th scope="col"><label for="{{target}}-{{index}}-16">16</label></th>
+                    </tr>
+                    <tr>
+                        <td><input type="checkbox" id="{{target}}-{{index}}-1"></td>
+                        <td><input type="checkbox" id="{{target}}-{{index}}-2"></td>
+                        <td><input type="checkbox" id="{{target}}-{{index}}-3"></td>
+                        <td><input type="checkbox" id="{{target}}-{{index}}-4"></td>
+                        <td><input type="checkbox" id="{{target}}-{{index}}-5"></td>
+                        <td><input type="checkbox" id="{{target}}-{{index}}-6"></td>
+                        <td><input type="checkbox" id="{{target}}-{{index}}-7"></td>
+                        <td><input type="checkbox" id="{{target}}-{{index}}-8"></td>
+                        <td><input type="checkbox" id="{{target}}-{{index}}-9"></td>
+                        <td><input type="checkbox" id="{{target}}-{{index}}-10"></td>
+                        <td><input type="checkbox" id="{{target}}-{{index}}-11"></td>
+                        <td><input type="checkbox" id="{{target}}-{{index}}-12"></td>
+                        <td><input type="checkbox" id="{{target}}-{{index}}-13"></td>
+                        <td><input type="checkbox" id="{{target}}-{{index}}-14"></td>
+                        <td><input type="checkbox" id="{{target}}-{{index}}-15"></td>
+                        <td><input type="checkbox" id="{{target}}-{{index}}-16"></td>
+                    </tr>
+                </tbody>
+            </table>
+        </script>
+
+        <script id="device-empty-template" type="x-tmpl-mustache">
+            <p>No device detected</p>
+        </script>
+
+        <script id="log-entry-template" type="x-tmpl-mustache">
+            <li><b>{{timestamp}}</b> {{msg}}</li>
+        </script>
+
+        <script>
+            function onReady() {
+                WebMidi
+                    .enable()
+                    .then(onEnabled)
+                    .catch(err => alert(err));
+            }
+
+            function onEnabled() {
+                renderChannelControls("input-channels", WebMidi.inputs);
+                renderChannelControls("output-channels", WebMidi.outputs);
+
+                preselectChannelControls("input-channels");
+                preselectChannelControls("output-channels");
+
+                $("#config")
+                    .submit(onSubmit)
+                    .show();
+            }
+
+            function renderChannelControls(target, devices) {
+                if (devices.length < 1) {
+                    renderTo(target, "device-empty");
+                    return;
+                }
+
+                devices.forEach((device, index) => {
+                    renderTo(target, "device", { target, index, device });
+                });
+            }
+
+            function renderTo(target, template, data) {
+                $(`#${target}`).append(Mustache.render($(`#${template}-template`).html(), data));
+            }
+
+            function preselectChannelControls(target) {
+                JSON.parse(localStorage.getItem(target) || "[]").forEach(selection => {
+                    $(`#${target}-${selection[0]}-${selection[1]}`).prop("checked", "true");
+                });
+            }
+
+            function onSubmit(ev) {
+                ev.preventDefault();
+                $("#config :input").prop("disabled", true);
+                $("#log").show();
+                log("Listening...");
+
+                const inputSelections = getSelections("input-channels");
+                const outputSelections = getSelections("output-channels");
+
+                localStorage.setItem("input-channels", JSON.stringify(inputSelections));
+                localStorage.setItem("output-channels", JSON.stringify(outputSelections));
+
+                const roundRobin = new RoundRobin(selectChannels(WebMidi.outputs, outputSelections));
+                selectChannels(WebMidi.inputs, inputSelections).forEach(channel => {
+                    channel.addListener("noteon", msg => { roundRobin.send(msg) });
+                    channel.addListener("noteoff", msg => { roundRobin.sendAll(msg) });
+                });
+            }
+
+            function getSelections(parentId) {
+                return $(`#${parentId} input:checked`)
+                    .get()
+                    .map(ele => {
+                        return ele.id.split("-").splice(2);
+                    });
+            }
+
+            function selectChannels(inputs, selections) {
+                return selections.map(selection => {
+                    return inputs[selection[0]].channels[selection[1]];
+                });
+            }
+
+            function log(msg) {
+                const timestamp = luxon.DateTime.now().toISO();
+                renderTo("log-entries", "log-entry", { timestamp, msg });
+                $("#log-entries").prop("scrollTop", $("#log-entries").prop("scrollHeight"));
+            }
+
+
+            class RoundRobin {
+                constructor(channels) {
+                    this.channels = channels;
+                    this.cur = 0;
+                }
+
+                send(msg) {
+                    const channel = this.channels[this.cur];
+                    channel.send(msg.rawData);
+                    this.cur = this.cur < this.channels.length - 1 ? this.cur + 1 : 0;
+                    log(`${msg.target.input.name} Ch${msg.channel} ${msg.type} ${msg.note.name}${msg.note.octave} -> ${channel.output.name} Ch${channel.number}`)
+                }
+
+                sendAll(msg) {
+                    this.channels.forEach(channel => {
+                        channel.send(msg.rawData);
+                    });
+                    log(`${msg.target.input.name} Ch${msg.channel} ${msg.type} ${msg.note.name}${msg.note.octave} -> All`)
+                }
+            }
+
+            $(document).ready(onReady);
+        </script>
+    </body>
+</html>
