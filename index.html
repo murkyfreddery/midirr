@@ -18,7 +18,7 @@
     </head>
     <body>
         <main class="container">
-            <p id="version">v0.0.3 <a href="https://github.com/murkyfreddery/midirr/">Github</a></p>
+            <p id="version">v0.0.4 <a href="https://github.com/murkyfreddery/midirr/">Github</a></p>
             <hgroup>
                 <h1>MIDI RR</h1>
                 <h2>Browser-based round-robin forwarder for MIDI devices.</h2>
@@ -204,14 +204,14 @@
 
                 send(msg) {
                     const channel = this.channels[this.cur];
-                    const note = constructNote(msg.note);
+                    const note = this.constructNote(msg.note);
                     channel.playNote(note);
                     this.cur = this.cur < this.channels.length - 1 ? this.cur + 1 : 0;
                     log(`${msg.target.input.name} Ch${msg.channel} ${msg.type} ${note.identifier} -> ${channel.output.name} Ch${channel.number}`)
                 }
 
                 sendAll(msg) {
-                    const note = constructNote(msg.note);
+                    const note = this.constructNote(msg.note);
                     this.channels.forEach(channel => {
                         channel.playNote(note);
                     });
